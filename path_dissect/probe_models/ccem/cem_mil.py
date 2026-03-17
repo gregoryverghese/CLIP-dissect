@@ -39,7 +39,7 @@ class LinearBatchNorm(torch.nn.Module):
             norm_type (str): Type of normalization ('batch' or 'instance').
         """
         super(LinearBatchNorm, self).__init__()
-        
+
         self.norm_type = norm_type
         self.bt_dim = out_features if bt_dim is None else bt_dim
         self.lbn_block = torch.nn.Sequential(
@@ -64,7 +64,7 @@ class LinearBatchNorm(torch.nn.Module):
             raise ValueError(
                 f"Unsupported norm type '{self.norm_type}'."
                 )
-        
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass for LinearBatchNorm block.
@@ -86,7 +86,7 @@ class PreMLP(torch.nn.Module):
         out_dim,
         dropout,
         activation,
-        mlp=True 
+        mlp=True
     ):
         super(PreMLP, self).__init__()
         self.in_dim = in_dim
@@ -99,10 +99,10 @@ class PreMLP(torch.nn.Module):
             torch.nn.Linear(int(in_dim/2), out_dim),
             activation
         )
-    
+
     def forward(self, x):
         return self.pre_mlp(x)
-    
+
 
 # Concept context generator
 class ConceptContextGenerator(torch.nn.Module):
@@ -112,7 +112,7 @@ class ConceptContextGenerator(torch.nn.Module):
             out_dim,
             dropout,
             activation,
-            mlp=True    
+            mlp=True
     ):
         super(ConceptContextGenerator, self).__init__()
 
@@ -139,7 +139,7 @@ class ConceptContextGenerator(torch.nn.Module):
 
     def forward(self, x):
         return self.ccpt_ctxt_gen(x)
-    
+
 
 # Concept probability generator
 class ConceptProbGenerator(torch.nn.Module):
@@ -147,7 +147,7 @@ class ConceptProbGenerator(torch.nn.Module):
         super(ConceptProbGenerator, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
-        
+
         self.prob_gen = torch.nn.Linear(
             self.in_features,
             self.out_features
@@ -196,7 +196,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
     ):
         """Concept Embedding Model (CEM) for multiple instance learning with concept embeddings."""
         super().__init__()
-        
+
         # Store parameters
         self.n_concepts = n_concepts
         self.concept_states = concept_states
@@ -218,7 +218,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
         self.n_tasks = n_tasks
         self.top_k_accuracy = top_k_accuracy
         self.no_concepts = no_concepts
-        
+
         # Initialize architecture based on no_concepts flag
         if self.no_concepts:
             # No concepts mode: single attention block, single pre-MLP, direct to c2y_model
@@ -227,8 +227,8 @@ class ConceptEmbeddingModel(pl.LightningModule):
                 self.attention_blocks = torch.nn.ModuleList(
                     [MultiConceptAttention(
                         self.h_dim,
-                        self.attn_dim, 
-                        self.n_att_heads, 
+                        self.attn_dim,
+                        self.n_att_heads,
                         self.dropout
                         )])
                 for block in self.attention_blocks:
@@ -236,7 +236,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
                 ctxt_in_dim = self.n_att_heads * self.h_dim
             else:
                 ctxt_in_dim = self.h_dim
-                
+
             self.b_norms = torch.nn.ModuleList([torch.nn.BatchNorm1d(ctxt_in_dim)])
         else:
             # Original concept-based mode
@@ -245,22 +245,22 @@ class ConceptEmbeddingModel(pl.LightningModule):
                 self.attention_blocks = torch.nn.ModuleList(
                     [MultiConceptAttention(
                         self.h_dim,
-                        self.attn_dim, 
-                        self.n_att_heads, 
+                        self.attn_dim,
+                        self.n_att_heads,
                         self.dropout
                         ) for _ in range(n_concepts)])
 
                 for block in self.attention_blocks:
                     block.register_forward_hook(self.attention_hook.hook_fn)
-            
+
                 ctxt_in_dim = self.n_att_heads * self.h_dim
             else:
                 ctxt_in_dim = self.h_dim
-             
+
             self.b_norms = torch.nn.ModuleList(
                 [torch.nn.BatchNorm1d(ctxt_in_dim) for _ in range(n_concepts)]
             )
-        
+
         # Pre-bottleneck MLP
         if self.pre_bn_mlp:
             out_dim = int(ctxt_in_dim/4)
@@ -269,14 +269,14 @@ class ConceptEmbeddingModel(pl.LightningModule):
                 int(ctxt_in_dim/4),
                 self.dropout,
                 ConceptEmbeddingModel.activations[embedding_activation]
-                )   
+                )
 
             self.pre_mlp_reg = PreMLP(
                  ctxt_in_dim,
                 int(ctxt_in_dim/4),
                 self.dropout,
                 ConceptEmbeddingModel.activations[embedding_activation]
-                )   
+                )
             ctxt_in_dim_v = int(out_dim)
         else:
             ctxt_in_dim_v = ctxt_in_dim
@@ -306,7 +306,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
                         ConceptEmbeddingModel.activations[embedding_activation]
                     )
                 )
-            
+
             # Concept prob generators
             self.concept_prob_generators = torch.nn.ModuleList()
             for i in range(n_concepts):
@@ -326,10 +326,10 @@ class ConceptEmbeddingModel(pl.LightningModule):
                 self.concept_prob_generators.append(ConceptProbGenerator(
                         ctxt_out_dim,
                         out_dim))
-                
+
                 if self.shared_prob_gen:
                     break
-            
+
             # Concept attention mechanism - learns importance weights for each concept
             self.concept_attention = ConceptAttention(
                 emb_size=self.emb_size,
@@ -341,10 +341,10 @@ class ConceptEmbeddingModel(pl.LightningModule):
             self.concept_context_generators = torch.nn.ModuleList()
             self.concept_prob_generators = torch.nn.ModuleList()
             self.concept_attention = None
-        
+
         # Post-bottleneck layer
         n_node = 1 if n_tasks == 'continuous' else n_tasks
-        
+
         if c2y_model is None:
             if self.no_concepts:
                 # In no_concepts mode, input dimension is the pre-MLP output or ctxt_in_dim
@@ -378,7 +378,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
                 else:
                     # Categorical concept
                     self.loss_concept_fns.append(torch.nn.CrossEntropyLoss())
-        
+
         # Task loss
         if task_type == 'cox':
             self.loss_task = CoxLoss()
@@ -406,18 +406,18 @@ class ConceptEmbeddingModel(pl.LightningModule):
             h_attn (torch.Tensor): Attention-weighted embedding. Shape: (batch_size, n_att_heads * embedd_dim).
             a_w_prob (torch.Tensor): Average attention probabilities for all tiles Shape: (batch_size, num_tiles).
         """
-           
+
         a_w = atten_block(x) # (batch_size, num_tiles, n_att_heads)
         a_w_avg = a_w.mean(dim=-1)
         sm = torch.nn.Softmax()
         a_w_prob = sm(a_w_avg)
-                
+
         a_w  = torch.transpose(a_w, -1, -2) # (batch_size, n_att_heads, num_tiles)
         h_attn = torch.matmul(a_w, x) # (batch_size, n_att_heads, h_dim)
         h_attn = h_attn.flatten(1, -1)  # (batch_size, n_att_heads * h_dim)
-        
+
         return h_attn, a_w
-    
+
 
     # Concept state embeddings helper method
     def _get_concept_state_embeddings(self, h, context_gen):
@@ -444,7 +444,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
         cpt_embedds = []
         start_idx = 0
         prob_idx = 0
-        
+
         for num_states in self.concept_states:
             if num_states == 0:
                 # Continuous concept: use single embedding directly
@@ -458,10 +458,10 @@ class ConceptEmbeddingModel(pl.LightningModule):
                 pos, neg = torch.chunk(bin_vec, 2, dim=1)
                 bin_p = state_probs[:, prob_idx]
                 cpt_embedd  = pos * bin_p.view(-1, 1, 1) + neg * (1 - bin_p).view(-1,1,1)
-                cpt_embedd = cpt_embedd.squeeze(1) 
+                cpt_embedd = cpt_embedd.squeeze(1)
                 start_idx = end_idx
                 prob_idx+=1
-            
+
             else:
                 # Categorical concept: weighted combination
                 end_idx = start_idx + num_states
@@ -469,12 +469,12 @@ class ConceptEmbeddingModel(pl.LightningModule):
                 cat_probs = state_probs[:, start_idx:end_idx]
                 cpt_embedd = (cat_contexts * cat_probs.unsqueeze(-1)).sum(dim=1)
                 start_idx = end_idx
-            
+
             cpt_embedds.append(cpt_embedd)
-        
+
         # Stack concept embeddings to create (batch, n_concepts, emb_size) tensor
         concept_embeddings = torch.stack(cpt_embedds, dim=1)  # (batch, n_concepts, emb_size)
-        
+
         # Apply concept attention if available
         if self.concept_attention is not None:
             concept_attention_weights, weighted_concept_embeddings = self.concept_attention(concept_embeddings)
@@ -483,7 +483,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
             return final_embeddings, concept_attention_weights
         else:
             # Fallback to concatenation if no concept attention
-            return torch.cat(cpt_embedds, dim=1), None 
+            return torch.cat(cpt_embedds, dim=1), None
 
     # Main forward pass - MIL and categorical context generation logic
     def _forward(
@@ -494,7 +494,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
         train=False,
     ):
         h = x
-        
+
         if self.no_concepts:
             # No concepts mode: single attention block, single pre-MLP, direct to c2y_model
             if self.attention_hook is not None:
@@ -504,13 +504,13 @@ class ConceptEmbeddingModel(pl.LightningModule):
             else:
                 h_slide = h.mean(dim=1)
                 a_w_prob = None
-            
+
             if self.pre_bn_mlp:
                 h_slide = self.pre_mlp(h_slide)
-            
+
             # Direct prediction without concept processing
             y = self.c2y_model(h_slide)
-            
+
             # Return None for concept-related outputs
             return tuple([None, None, y, None, [a_w_prob], None, None])
         else:
@@ -519,7 +519,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
             state_probs = []
             state_logits = []
             a_w_prob_lst = []
-        
+
             for i, context_gen in enumerate(self.concept_context_generators):
                 if self.attention_hook is not None:
                     atten_block = self.attention_blocks[i]
@@ -527,13 +527,13 @@ class ConceptEmbeddingModel(pl.LightningModule):
                     h_slide = self.b_norms[i](h_attn)
                 else:
                     h_slide = h.mean(dim=1)
-                
+
                 if self.pre_bn_mlp:
                     if self.concept_states[i]==0:
                         h_slide = self.pre_mlp_reg(h_slide)
                     else:
                         h_slide = self.pre_mlp(h_slide)
-                         
+
                 state_context = self._get_concept_state_embeddings(h_slide, context_gen)
                 probs, logits = self._get_concept_state_probs(state_context, i)
 
@@ -561,7 +561,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
             state_logits = torch.cat(state_logits, dim=1) # (batch_size, sum(concept_states))
             cpt_embedds, concept_attention_weights = self._get_concept_embeddings(state_probs, contexts)
             y = self.c2y_model(cpt_embedds)
-            
+
             return tuple([state_logits, cpt_embedds, y, self.concept_states, a_w_prob_lst, contexts, concept_attention_weights])
 
     def forward(
@@ -578,7 +578,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
         batch,
         batch_idx,
         dataloader_idx=0,
-    ):  
+    ):
         x, y, c, wsi_id = batch[0], batch[1], batch[2], batch[3]
         return self._forward(x, c=c, y=y, train=False)
 
@@ -587,12 +587,12 @@ class ConceptEmbeddingModel(pl.LightningModule):
         idx = 0
         bin_losses, cat_losses, cont_losses = [], [], []
         w_bin, w_cat, w_cont = 1, 1, 1
-        
+
         for i, n in enumerate(self.concept_states):
             loss_fn = self.loss_concept_fns[i]
             if n == 0:
                 # Continuous concept
-                c_pred = cpt_state_probs[:, idx] 
+                c_pred = cpt_state_probs[:, idx]
                 c_true = cpt_labels[:, i].float()
                 concept_loss = loss_fn(c_pred, c_true)
                 cont_losses.append(concept_loss)
@@ -611,7 +611,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
                 concept_loss = loss_fn(c_pred, c_true)
                 cat_losses.append(concept_loss)
                 idx += n
-        
+
         bin_loss  = torch.mean(torch.stack(bin_losses))  if bin_losses  else torch.tensor(0., device=cpt_state_probs.device)
         cat_loss  = torch.mean(torch.stack(cat_losses))  if cat_losses  else torch.tensor(0., device=cpt_state_probs.device)
         cont_loss = torch.mean(torch.stack(cont_losses)) if cont_losses else torch.tensor(0., device=cpt_state_probs.device)
@@ -628,7 +628,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
     ):
         x, y, c, wsi_id = batch[0], batch[1], batch[2], batch[3]
         outputs = self._forward(x, c=c, y=y, train=train)
-        
+
         c_sem, c_logits, y_logits, cpt_states, a_w_prob_lst, contexts, concept_attention_weights = outputs
 
         # Task loss
@@ -641,7 +641,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
                     # For Cox regression, y is a tuple of (event, survtime)
                     event, survtime = y
                     hazard_pred = y_logits.reshape(-1)
-                    
+
                     # Debug: Print info on first batch (training or validation)
                     if batch_idx == 0:
                         mode = "TRAIN" if train else "VAL"
@@ -658,11 +658,11 @@ class ConceptEmbeddingModel(pl.LightningModule):
                               f"std={hazard_pred.std().item():.4f}")
                         print(f"  - Sample hazard_pred: {hazard_pred[:5].cpu().tolist()}")
                         print(f"  - Sample (event, survtime): {list(zip(event[:5].cpu().tolist(), survtime[:5].cpu().tolist()))}")
-                    
+
                     task_loss = self.loss_task(
                         survtime, event, hazard_pred, y_logits.device
                     )
-                    
+
                     # Debug: Print loss value on first batch
                     if batch_idx == 0:
                         mode = "TRAIN" if train else "VAL"
@@ -703,7 +703,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
                 c,
                 self.concept_states
             )
-        
+
         # Compute single task metric (F1 for binary/categorical, MSE for regression, C-index for Cox)
         if y_logits is None:
             y_metric_value = 0.0
@@ -726,7 +726,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
                 task_type=self.task_type
             )
             y_metric_type = 'f1'
-        
+
         # Store metrics based on computed types
         result = {
             "c_f1": c_metric_value if c_metric_type == 'f1' else 0.0,
@@ -743,7 +743,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
 
     def training_step(self, batch, batch_no):
         loss, result = self._run_step(batch, batch_no, train=True)
-        
+
         # Log all metrics, but only show concept_loss and task_loss in progress bar
         # Use on_step=True to update progress bar during epoch as batches are processed
         for name, val in result.items():
@@ -757,7 +757,7 @@ class ConceptEmbeddingModel(pl.LightningModule):
 
     def validation_step(self, batch, batch_no):
         _, result = self._run_step(batch, batch_no, train=False)
-        
+
         # Log all metrics with val_ prefix, show only concept_loss and task_loss in progress bar
         # Use on_epoch=True for validation metrics (typically shown per-epoch)
         for name, val in result.items():
@@ -766,12 +766,12 @@ class ConceptEmbeddingModel(pl.LightningModule):
                 self.log("val_" + name, val, on_step=False, on_epoch=True, prog_bar=True)
             else:
                 self.log("val_" + name, val, on_step=False, on_epoch=True, prog_bar=False)
-        
+
         result = {
             "val_" + key: val
             for key, val in result.items()
         }
-        
+
         return result
 
     def test_step(self, batch, batch_no):

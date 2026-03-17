@@ -75,7 +75,7 @@ for slide_dir in tqdm(slide_dirs, desc="Slides"):
             feats = model.visual_projection(vision_outputs.pooler_output)
             embeddings.append(F.normalize(feats, dim=-1))
 
-    # Mean-pool all tile embeddings → single slide embedding [1, 512]
+    # Mean-pool all tile embeddings -> single slide embedding [1, 512]
     slide_embedding = torch.cat(embeddings).mean(dim=0, keepdim=True)
     torch.save(slide_embedding.cpu(), out_path)
 

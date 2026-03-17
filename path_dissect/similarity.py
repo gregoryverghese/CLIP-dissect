@@ -11,16 +11,16 @@ def cos_similarity_cubed(clip_feats, target_feats, device='cuda', batch_size=100
     """
     with torch.no_grad():
         torch.cuda.empty_cache()
-        
+
         clip_feats = clip_feats - torch.mean(clip_feats, dim=0, keepdim=True)
         target_feats = target_feats - torch.mean(target_feats, dim=0, keepdim=True)
-        
+
         clip_feats = clip_feats**3
         target_feats = target_feats**3
-        
+
         clip_feats = clip_feats/torch.clip(torch.norm(clip_feats, p=2, dim=0, keepdim=True), min_norm)
         target_feats = target_feats/torch.clip(torch.norm(target_feats, p=2, dim=0, keepdim=True), min_norm)
-        
+
         similarities = []
         for t_i in tqdm(range(math.ceil(target_feats.shape[1]/batch_size))):
             curr_similarities = []
@@ -34,9 +34,9 @@ def cos_similarity(clip_feats, target_feats, device='cuda'):
     with torch.no_grad():
         clip_feats = clip_feats / torch.norm(clip_feats, p=2, dim=0, keepdim=True)
         target_feats = target_feats / torch.norm(target_feats, p=2, dim=0, keepdim=True)
-        
+
         batch_size = 10000
-        
+
         similarities = []
         for t_i in tqdm(range(math.ceil(target_feats.shape[1]/batch_size))):
             curr_similarities = []
@@ -48,7 +48,7 @@ def cos_similarity(clip_feats, target_feats, device='cuda'):
 
 def soft_wpmi(clip_feats, target_feats, top_k=100, a=10, lam=1, device='cuda',
                         min_prob=1e-7, p_start=0.998, p_end=0.97):
-    
+
     with torch.no_grad():
         torch.cuda.empty_cache()
         clip_feats = torch.nn.functional.softmax(a*clip_feats, dim=1)
@@ -58,9 +58,9 @@ def soft_wpmi(clip_feats, target_feats, top_k=100, a=10, lam=1, device='cuda',
 
         p_in_examples = p_start-(torch.arange(start=0, end=top_k)/top_k*(p_start-p_end)).unsqueeze(1).to(device)
         for orig_id in tqdm(range(target_feats.shape[1])):
-            
+
             curr_clip_feats = clip_feats.gather(0, inds[:,orig_id:orig_id+1].expand(-1,clip_feats.shape[1])).to(device)
-            
+
             curr_p_d_given_e = 1+p_in_examples*(curr_clip_feats-1)
             curr_p_d_given_e = torch.sum(torch.log(curr_p_d_given_e+min_prob), dim=0, keepdim=True)
             prob_d_given_e.append(curr_p_d_given_e)
@@ -69,16 +69,16 @@ def soft_wpmi(clip_feats, target_feats, top_k=100, a=10, lam=1, device='cuda',
         prob_d_given_e = torch.cat(prob_d_given_e, dim=0)
         print(prob_d_given_e.shape)
         #logsumexp trick to avoid underflow
-        prob_d = (torch.logsumexp(prob_d_given_e, dim=0, keepdim=True) - 
+        prob_d = (torch.logsumexp(prob_d_given_e, dim=0, keepdim=True) -
                   torch.log(prob_d_given_e.shape[0]*torch.ones([1]).to(device)))
         mutual_info = prob_d_given_e - lam*prob_d
     return mutual_info
 
 def wpmi(clip_feats, target_feats, top_k=28, a=2, lam=0.6, device='cuda', min_prob=1e-7):
-    
+
     with torch.no_grad():
         torch.cuda.empty_cache()
-        
+
         clip_feats = torch.nn.functional.softmax(a*clip_feats, dim=1)
 
         inds = torch.topk(target_feats, dim=0, k=top_k)[1]
@@ -132,4 +132,3 @@ def rank_reorder(clip_feats, target_feats, device="cuda", p=3, top_fraction=0.05
 
         errors = torch.cat(errors, dim=0)
     return -errors
-

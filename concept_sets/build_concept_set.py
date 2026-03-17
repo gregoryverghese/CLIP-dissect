@@ -444,7 +444,7 @@ def main():
 
     print(f"Output: {args.output}")
     print(f"Branches: {args.branches}")
-    print(f"Word range: {args.min_words}–{args.max_words} | Synonyms: {not args.no_synonyms}")
+    print(f"Word range: {args.min_words}-{args.max_words} | Synonyms: {not args.no_synonyms}")
     print()
 
     concepts = build_concept_set(args)
