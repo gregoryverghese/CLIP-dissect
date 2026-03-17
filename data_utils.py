@@ -1,11 +1,51 @@
 import os
+import sys
 import torch
 import pandas as pd
+from pathlib import Path
+from torch.utils.data import Dataset
 from torchvision import datasets, transforms, models
 
 DATASET_ROOTS = {"imagenet_val": "YOUR_PATH/ImageNet_val/",
                 "broden": "data/broden1_224/images/",
                 "tcga": "/home/maracuja/data/tcga/tiles/"}
+
+UNI_EMB_DIR  = "/home/maracuja/data/tcga/uni_embeddings"
+PLIP_EMB_DIR = "/home/maracuja/data/tcga/plip_embeddings"
+CEM_CHECKPOINT = "/home/maracuja/projects/conch-dissect/model.ckpt"
+
+# Inferred from checkpoint state dict
+CEM_HPARAMS = dict(
+    n_concepts=4,
+    n_tasks=1,
+    h_dim=1024,
+    emb_size=8,
+    concept_states=[4, 3, 10, 3],
+    n_att_heads=4,
+    attn_dim=256,
+    dropout=0.4,
+    attn_dropout=0.4,
+    pre_bn_mlp=False,
+    task_type="cox",
+    c2y_layers=[],
+)
+
+
+class SlideEmbeddingDataset(Dataset):
+    """
+    Loads pre-computed per-slide UNI embeddings for CEM input.
+    Returns (embeddings [n_tiles, h_dim], slide_id) in sorted order.
+    """
+    def __init__(self, emb_dir=UNI_EMB_DIR):
+        self.emb_paths = sorted(Path(emb_dir).glob("*.pt"))
+        self.slide_ids = [p.stem for p in self.emb_paths]
+
+    def __len__(self):
+        return len(self.emb_paths)
+
+    def __getitem__(self, idx):
+        emb = torch.load(self.emb_paths[idx], map_location="cpu")
+        return emb, self.slide_ids[idx]
 
 
 def get_target_model(target_name, device):
@@ -39,6 +79,24 @@ def get_target_model(target_name, device):
     
     target_model.eval()
     return target_model, preprocess
+
+
+def get_cem_model(checkpoint_path=CEM_CHECKPOINT, device="cuda"):
+    """
+    Load ConceptEmbeddingModel from a Lightning checkpoint.
+    Requires probe-models/losses.py and probe-models/attention.py to be present.
+    """
+    probe_models_dir = os.path.join(os.path.dirname(__file__), "probe-models")
+    if probe_models_dir not in sys.path:
+        sys.path.insert(0, os.path.dirname(probe_models_dir))
+
+    from probe_models.cem_mil import ConceptEmbeddingModel  # noqa: E402
+
+    model = ConceptEmbeddingModel(**CEM_HPARAMS)
+    ck = torch.load(checkpoint_path, map_location="cpu")
+    model.load_state_dict(ck["state_dict"])
+    model.eval().to(device)
+    return model
 
 def get_resnet_imagenet_preprocess():
     target_mean = [0.485, 0.456, 0.406]
